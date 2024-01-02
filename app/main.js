@@ -1,85 +1,53 @@
-const { app, Menu, BrowserWindow, dialog, nativeImage } = require("electron");
-const { autoUpdater } = require("electron-updater");
-const checkInternetConnected = require("check-internet-connected");
+const { app, Menu, BrowserWindow, dialog, session } = require("electron");
+const fs = require('fs');
 const ElectronDl = require("electron-dl");
 const contextMenu = require("electron-context-menu");
 const path = require("path");
-const log = require("electron-log");
-const { setActivity, loginToRPC, clearActivity } = require("./rpc");
-const useragents = require("./useragents.json");
-const { ElectronBlocker } = require("@cliqz/adblocker-electron");
-const { getValue } = require("./store");
 const { menulayout } = require("./menu");
+const { shell } = require("electron");
+const general = require("./general");
 
-log.transports.file.level = "verbose";
-console.log = log.log;
-Object.assign(console, log.functions);
+const singleInstance = app.requestSingleInstanceLock();
 
-function createWindow() {
-  if (getValue("enterprise-or-normal") === "https://microsoft365.com/?auth=1") {
-    var win = new BrowserWindow({
-      width: 1181,
-      height: 670,
-      icon: path.join(__dirname, "/assets/icons/png/1024x1024.png"),
-      show: false,
-      webPreferences: {
-        nodeIntegration: true,
-        devTools: true,
-        partition: "persist:personal",
-      },
+if (!singleInstance) {
+  console.log("Another instance is running please switch to it");
+  app.exit(0);
+} 
+
+//validate internet connectivity on startup
+fetch('https://mozilla.org')
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Server not reachable');
+    }
+    console.log('Server is reachable!');
+  })
+  .catch(error => {
+
+    app.exit(0);
+
+    const options = {
+      type: "warning",
+      buttons: ["Ok"],
+      defaultId: 2,
+      title: "Warning",
+      message: "You appear to be offline!",
+      detail:
+        "Please check your Internet Connectivity. This app cannot run without an Internet Connection!",
+    };
+    dialog.showMessageBox(null, options, (response) => {
+      console.log(response);
     });
-  } else if (
-    getValue("enterprise-or-normal") === "https://microsoft365.com/?auth=2"
-  ) {
-    var win = new BrowserWindow({
-      width: 1181,
-      height: 670,
-      icon: path.join(__dirname, "/assets/icons/png/1024x1024.png"),
-      show: false,
-      webPreferences: {
-        nodeIntegration: true,
-        devTools: true,
-        partition: "persist:work",
-      },
-    });
-  }
-
-  if (getValue("autohide-menubar") === "true") {
-    win.setAutoHideMenuBar(true);
-  } else {
-    win.setAutoHideMenuBar(false);
-  }
-
-  const splash = new BrowserWindow({
-    width: 810,
-    height: 610,
-    transparent: true,
-    frame: false,
-    icon: path.join(__dirname, "/assets/icons/png/1024x1024.png"),
+    return;
   });
 
-  splash.loadURL(`https://agam778.github.io/MS-365-Electron/loading`);
-  win.loadURL(
-    `${getValue("enterprise-or-normal") || "https://microsoft365.com/?auth=1"}`,
-    {
-      userAgent: getValue("useragentstring") || useragents.Windows,
-    }
-  );
+//app.commandLine.appendSwitch("disable-gpu");
+// app.commandLine.appendSwitch("disable-media-stream");
+// session.defaultSession.setPermissionRequestHandler(null);
 
-  win.webContents.on("did-finish-load", () => {
-    splash.destroy();
-    win.show();
-    if (getValue("discordrpcstatus") === "true") {
-      setActivity(`On "${win.webContents.getTitle()}"`);
-    }
-    if (getValue("blockadsandtrackers") === "true") {
-      ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then((blocker) => {
-        blocker.enableBlockingInSession(win.webContents.session);
-      });
-    }
-  });
-}
 
+
+//SHARED across - download in electron
 ElectronDl({
   dlPath: "./downloads",
   onStarted: (item) => {
@@ -94,7 +62,7 @@ ElectronDl({
     dialog.showMessageBox({
       type: "info",
       title: "Download Completed",
-      message: `Downloading Completed! Please check your "Downloads" folder.`,
+      message: `Downloading Completed! Please check your USER > "Downloads" folder.`,
       buttons: ["OK"],
     });
   },
@@ -108,211 +76,67 @@ ElectronDl({
   },
 });
 
-contextMenu({
-  showInspectElement: false,
-  showServices: false,
+//SHARED across - BrowserWindows - customize mouse context menu
+contextMenu({ // https://github.com/sindresorhus/electron-context-menu
+  showInspectElement: true,
+  showServices: true, //macOS only, no tested
+  showCopyLink: true,
+  prepend: (defaultActions, parameters, browserWindow) => [
+    defaultActions.separator(),
+    {
+      label: 'Open in new window w/ cookies',
+      visible: parameters.linkURL.length > 0 && parameters.mediaType === 'none',
+      click: () => {
+        // console.log(browserWindow.partitionName);
+        general.OpenNewWindow( parameters.linkURL, browserWindow.partitionName ) //BrowserWindow.getFocusedWindow().partitionName )
+        // console.log( parameters.linkURL);
+      }
+    },
+    {
+      label: 'Open in new window',
+      visible: parameters.linkURL.length > 0 && parameters.mediaType === 'none',
+      click: () => {
+        general.OpenNewWindow( parameters.linkURL, null )
+      }
+    },
+    {
+      label: 'Open in default browser',
+      visible: parameters.linkURL.length > 0 && parameters.mediaType === 'none',
+      click: () => {
+        shell.openExternal(parameters.linkURL);
+      }
+    },
+    defaultActions.separator(),
+    {
+      label: 'Export as pdf',
+      click: () => {
+        general.SavePDF();
+      }
+    }
+  ]
 });
 
+//SHARED accross BrowserWindows - configure BROWSER menu
 Menu.setApplicationMenu(Menu.buildFromTemplate(menulayout));
 
+
+
 app.on("ready", () => {
-  createWindow();
-});
-
-app.on("web-contents-created", (event, contents) => {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (getValue("websites-in-new-window") === "false") {
-      if (url.includes("page=Download")) {
-        return { action: "allow" };
-      } else {
-        BrowserWindow.getFocusedWindow()
-          .loadURL(url)
-          .catch((err) => {
-            // do not show error
-          });
-        if (getValue("discordrpcstatus") === "true") {
-          setActivity(
-            `On "${BrowserWindow.getFocusedWindow().webContents.getTitle()}"`
-          );
-        }
-        return { action: "deny" };
-      }
-    } else {
-      if (getValue("discordrpcstatus") === "true") {
-        setActivity(
-          `On "${BrowserWindow.getFocusedWindow().webContents.getTitle()}"`
-        );
-      }
-      return { action: "allow" };
-    }
-  });
-  contents.on("did-finish-load", () => {
-    if (getValue("dynamicicons") === "true") {
-      if (BrowserWindow.getFocusedWindow()) {
-        if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("&ithint=file%2cpptx") ||
-          BrowserWindow.getFocusedWindow()
-            .webContents.getTitle()
-            .includes(".pptx")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/powerpoint-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/powerpoint.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "PowerPoint");
-            });
-          }
-        } else if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("&ithint=file%2cdocx") ||
-          BrowserWindow.getFocusedWindow()
-            .webContents.getTitle()
-            .includes(".docx")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/word-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/word.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "Word");
-            });
-          }
-        } else if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("&ithint=file%2cxlsx") ||
-          BrowserWindow.getFocusedWindow()
-            .webContents.getTitle()
-            .includes(".xlsx")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/excel-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/excel.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "Excel");
-            });
-          }
-        } else if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("outlook.live.com") ||
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("outlook.office.com")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/outlook-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/outlook.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "Outlook");
-            });
-          }
-        } else if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("onedrive.live.com") ||
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("onedrive.aspx")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/onedrive-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/onedrive.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "OneDrive");
-            });
-          }
-        } else if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("teams.live.com")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/teams-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/teams.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "Teams");
-            });
-          }
-        } else if (
-          BrowserWindow.getFocusedWindow()
-            .webContents.getURL()
-            .includes("&ithint=onenote")
-        ) {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(
-              path.join(__dirname, "../assets/icons/apps/onenote-mac.png")
-            );
-          } else if (process.platform === "win32") {
-            let nimage = nativeImage.createFromPath(
-              path.join(__dirname, "../assets/icons/apps/onenote.png")
-            );
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(nimage, "OneNote");
-            });
-          }
-        } else {
-          if (process.platform === "darwin") {
-            app.dock.setIcon(null);
-          } else {
-            BrowserWindow.getAllWindows().forEach((window) => {
-              window.setOverlayIcon(null, "");
-            });
-          }
-        }
-      }
-    }
-  });
-});
-
-app.on("browser-window-created", (event, window) => {
-  if (getValue("autohide-menubar") === "true") {
-    window.setAutoHideMenuBar(true);
-  } else {
-    window.setAutoHideMenuBar(false);
+  //when useragent defined apply it cross BrowserWindows
+  if (BrowserWindow.getAllWindows().length === 0) {
+    let f = path.join(process.cwd(), "useragent.txt");
+    if (fs.existsSync(f))
+      general.SetUserAgent(fs.readFileSync(f, 'utf-8'));
   }
-  window.webContents.on("did-finish-load", () => {
-    if (getValue("discordrpcstatus") === "true") {
-      setActivity(`On "${window.webContents.getTitle()}"`);
-    }
-  });
-  if (getValue("blockadsandtrackers") === "true") {
-    ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then((blocker) => {
-      blocker.enableBlockingInSession(window.webContents.session);
-    });
-  }
+
+  //load permissions
+  general.LoadPermissions();
+  
+  //create icon
+  general.TrayIcon();
+  
+  //open default
+  general.OpenNewWindow("https://mail.google.com/mail/u/0/#inbox", "persist:gmail1", "gmail16.png");
 });
 
 app.on("window-all-closed", () => {
@@ -321,36 +145,5 @@ app.on("window-all-closed", () => {
   }
   if (process.platform === "darwin") {
     app.dock.setIcon(null);
-  }
-  clearActivity();
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
-
-app.on("ready", function () {
-  checkInternetConnected().catch(() => {
-    const options = {
-      type: "warning",
-      buttons: ["Ok"],
-      defaultId: 2,
-      title: "Warning",
-      message: "You appear to be offline!",
-      detail:
-        "Please check your Internet Connectivity. This app cannot run without an Internet Connection!",
-    };
-    dialog.showMessageBox(null, options, (response) => {
-      console.log(response);
-    });
-  });
-  if (getValue("autoupdater") === "true") {
-    autoUpdater.checkForUpdatesAndNotify();
-  }
-  if (getValue("discordrpcstatus") === "true") {
-    loginToRPC();
-    setActivity(`Opening Microsoft 365...`);
   }
 });

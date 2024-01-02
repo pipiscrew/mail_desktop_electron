@@ -1,4 +1,3 @@
-const useragents = require("./useragents.json");
 const {
   app,
   dialog,
@@ -6,63 +5,12 @@ const {
   ShareMenu,
   clipboard,
 } = require("electron");
-const axios = require("axios");
-const { clearActivity, setActivity } = require("./rpc");
-const { shell } = require("electron");
-const { autoUpdater } = require("electron-updater");
-const { ElectronBlocker } = require("@cliqz/adblocker-electron");
-const fetch = require("cross-fetch");
+// const { shell } = require("electron");
 const openAboutWindow = require("about-window").default;
 const path = require("path");
-const { getValue, setValue, getValueOrDefault } = require("./store");
+const general = require("./general");
+const permissions_cfg = require("./permissions_cfg");
 
-async function checkForUpdates() {
-  try {
-    const res = await axios.get(
-      "https://api.github.com/repos/agam778/MS-365-Electron/releases/latest"
-    );
-    const data = res.data;
-    const currentVersion = "v" + app.getVersion();
-    const latestVersion = data.tag_name;
-
-    if (currentVersion !== latestVersion) {
-      if (process.platform === "win32" || process.platform === "darwin") {
-        autoUpdater.checkForUpdatesAndNotify().then((result) => {
-          if (result === null) {
-            dialog.showMessageBoxSync({
-              type: "info",
-              title: "No Update Available",
-              message: `Current version: ${currentVersion}\nLatest version: ${latestVersion}\n\nYou are already using the latest version.`,
-              buttons: ["OK"],
-            });
-          }
-        });
-        return;
-      } else {
-        const updatedialog = dialog.showMessageBoxSync({
-          type: "info",
-          title: "Update Available",
-          message: `Current version: ${currentVersion}\nLatest version: ${latestVersion}\n\nPlease update to the latest version.`,
-          buttons: ["Download", "Close"],
-        });
-        if (updatedialog === 0) {
-          shell.openExternal(
-            "https://github.com/agam778/MS-365-Electron/releases/latest"
-          );
-        }
-      }
-    } else {
-      dialog.showMessageBoxSync({
-        type: "info",
-        title: "No Update Available",
-        message: `Your App's version: ${currentVersion}\nLatest version: ${latestVersion}\n\nYou are already using the latest version.`,
-        buttons: ["OK"],
-      });
-    }
-  } catch (error) {
-    console.error("Error checking for updates:", error);
-  }
-}
 
 async function openExternalLink(url) {
   const { shell } = require("electron");
@@ -74,689 +22,175 @@ async function openLogsFolder() {
   if (process.platform === "win32") {
     await shell.openPath(
       "C:\\Users\\" +
-        process.env.USERNAME +
-        "\\AppData\\Roaming\\ms-365-electron\\logs\\"
+      process.env.USERNAME +
+      "\\AppData\\Roaming\\mail_desktop_electron\\"
     );
   } else if (process.platform === "darwin") {
     await shell.openPath(
-      "/Users/" + process.env.USER + "/Library/Logs/ms-365-electron/"
+      "/Users/" + process.env.USER + "/Library/Logs/mail_desktop_electron/"
     );
   } else if (process.platform === "linux") {
     await shell.openPath(
-      "/home/" + process.env.USER + "/.config/ms-365-electron/logs/"
+      "/home/" + process.env.USER + "/.config/mail_desktop_electron/logs/"
     );
   }
 }
 
-function setUserAgent(useragent) {
-  setValue("useragentstring", useragent);
-  const updatedialog = dialog.showMessageBoxSync({
-    type: "info",
-    title: "User-Agent string changed",
-    message: `You have switched to the ${useragent} User-Agent string.\n\nPlease restart the app for the changes to take effect.`,
-    buttons: ["Later", "Restart"],
-  });
-  if (updatedialog === 1) {
-    app.relaunch();
-    app.exit();
-  }
-}
-
-getValueOrDefault("enterprise-or-normal", "https://microsoft365.com/?auth=1");
-getValueOrDefault("websites-in-new-window", "true");
-getValueOrDefault("autohide-menubar", "false");
-getValueOrDefault("useragentstring", useragents.Windows);
-getValueOrDefault("discordrpcstatus", "false");
-getValueOrDefault("blockadsandtrackers", "false");
-getValueOrDefault("dynamicicons", "true");
-getValueOrDefault("autoupdater", "true");
-
+/*
+  https://www.electronjs.org/docs/latest/api/menu
+  https://www.electronjs.org/docs/latest/api/menu-item#menuitemenabled
+*/
 const menulayout = [
   ...(process.platform === "darwin"
     ? [
-        {
-          label: app.name,
-          submenu: [
-            {
-              label: "About MS-365-Electron",
-              click: () => {
-                openAboutWindow({
-                  icon_path: path.join(__dirname, "../assets/about.png"),
-                  product_name: "MS-365-Electron",
-                  copyright:
-                    "Copyright (c) 2021-2023 Agampreet Singh\nMicrosoft 365, the name, website, images/icons\nare the intellectual properties of Microsoft.",
-                  package_json_dir: __dirname + "/../",
-                  bug_report_url:
-                    "https://github.com/agam778/MS-365-Electron/issues/",
-                  bug_link_text: "Report an issue",
-                  adjust_window_size: "2",
-                  show_close_button: "Close",
-                });
+      {
+        label: app.name,
+        submenu: [
+          {
+            label: "about mail_desktop_electron",
+            click: () => {
+              openAboutWindow({
+                icon_path: path.join(__dirname, "assets", "about.png"),
+                product_name: "mail_desktop_electron",
+                copyright:
+                  "All third-party libraries/images are copyrighted by their respective owners.",
+                package_json_dir: __dirname + "/../",
+                bug_report_url: "https://pipiscrew.com",
+                bug_link_text: "home",
+                adjust_window_size: "2",
+                show_close_button: "Close",
+              });
+            },
+          },
+          {
+            label: "open profile folder",
+            click: async () => {
+              await openLogsFolder();
+            },
+          },
+          { type: "separator" },
+          {
+            label: "Preferences",
+            submenu: [
+              {
+                label: "user agent",
+                click: () => {
+                  const options = {
+                    type: "info",
+                    buttons: ["Ok"],
+                    defaultId: 2,
+                    title: "Info",
+                    message: "create or edit",
+                    detail: path.join(process.cwd(), "useragent.txt"),
+                  };
+                  dialog.showMessageBox(null, options, (response) => {
+                    console.log(response);
+                  });
+                }
               },
-            },
-            {
-              label: "Check for Updates",
-              id: "check-for-updates",
-              click: async () => {
-                await checkForUpdates();
-              },
-            },
-            { type: "separator" },
-            {
-              label: "Learn More",
-              click: async () => {
-                await openExternalLink(
-                  "https://github.com/agam778/MS-365-Electron"
-                );
-              },
-            },
-            {
-              label: "Open Logs Folder",
-              click: async () => {
-                await openLogsFolder();
-              },
-            },
-            { type: "separator" },
-            {
-              label: "Preferences",
-              submenu: [
-                {
-                  label: "Open MS 365 with Personal Account",
-                  type: "radio",
-                  click() {
-                    setValue(
-                      "enterprise-or-normal",
-                      "https://microsoft365.com/?auth=1"
-                    );
-                    dialog.showMessageBoxSync({
-                      type: "info",
-                      title: "MS 365 with Personal Account",
-                      message:
-                        "MS 365 will now open with your Personal Account.\n\nPlease restart the app to apply the changes.",
-                      buttons: ["OK"],
-                    });
-                  },
-                  checked:
-                    getValue("enterprise-or-normal") ===
-                    "https://microsoft365.com/?auth=1",
-                },
-                {
-                  label: "Open MS 365 with Work/School Account",
-                  type: "radio",
-                  click() {
-                    setValue(
-                      "enterprise-or-normal",
-                      "https://microsoft365.com/?auth=2"
-                    );
-                    dialog.showMessageBoxSync({
-                      type: "info",
-                      title: "MS 365 with Work/School Account",
-                      message:
-                        "MS 365 will now open with your Work/School account.\n\nPlease restart the app to apply the changes.",
-                      buttons: ["OK"],
-                    });
-                  },
-                  checked:
-                    getValue("enterprise-or-normal") ===
-                    "https://microsoft365.com/?auth=2",
-                },
-                { type: "separator" },
-                {
-                  label: "Open Websites in New Windows",
-                  type: "radio",
-                  click: () => {
-                    setValue("websites-in-new-window", "true");
-                    dialog.showMessageBoxSync({
-                      type: "info",
-                      title: "Websites in New Windows",
-                      message:
-                        "Websites which are targeted to open in new tabs will now open in new windows.",
-                      buttons: ["OK"],
-                    });
-                  },
-                  checked: getValue("websites-in-new-window") === "true",
-                },
-                {
-                  label: "Open Websites in the Same Window",
-                  type: "radio",
-                  click: () => {
-                    setValue("websites-in-new-window", "false");
-                    dialog.showMessageBoxSync({
-                      type: "info",
-                      title: "Websites in New Windows",
-                      message:
-                        "Websites which are targeted to open in new tabs will now open in the same window.",
-                      buttons: ["OK"],
-                    });
-                  },
-                  checked: getValue("websites-in-new-window") === "false",
-                },
-                { type: "separator" },
-                {
-                  label: "Enable Discord RPC",
-                  type: "checkbox",
-                  click: () => {
-                    if (getValue("discordrpcstatus") === "true") {
-                      setValue("discordrpcstatus", "false");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Discord RPC",
-                        message: "Discord RPC has been disabled.",
-                        buttons: ["OK"],
-                      });
-                      clearActivity();
-                      return;
-                    } else if (
-                      getValue("discordrpcstatus") === "false" ||
-                      getValue("discordrpcstatus") === undefined
-                    ) {
-                      setValue("discordrpcstatus", "true");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Discord RPC",
-                        message: "Discord RPC has been enabled.",
-                        buttons: ["OK"],
-                      });
-                      setActivity(
-                        `On ${BrowserWindow.getFocusedWindow().webContents.getTitle()}`
-                      );
-                      return;
-                    }
-                  },
-                  checked: getValue("discordrpcstatus") === "true",
-                },
-                {
-                  label: "Enable Auto Updates",
-                  type: "checkbox",
-                  click: () => {
-                    if (getValue("autoupdater") === "true") {
-                      setValue("autoupdater", "false");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Auto Updates",
-                        message: "Auto updates have been disabled.",
-                        buttons: ["OK"],
-                      });
-                      return;
-                    } else if (
-                      getValue("autoupdater") === "false" ||
-                      getValue("autoupdater") === undefined
-                    ) {
-                      setValue("autoupdater", "true");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Auto Updates",
-                        message: "Auto updates have been enabled.",
-                        buttons: ["OK"],
-                      });
-                      return;
-                    }
-                  },
-                  checked: getValue("autoupdater") === "true",
-                },
-                {
-                  label: "Enable Dynamic Icons",
-                  type: "checkbox",
-                  click: () => {
-                    if (getValue("dynamicicons") === "true") {
-                      setValue("dynamicicons", "false");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Dynamic Icons",
-                        message: "Dynamic icons have been disabled.",
-                        buttons: ["OK"],
-                      });
-                      return;
-                    } else if (
-                      getValue("dynamicicons") === "false" ||
-                      getValue("dynamicicons") === undefined
-                    ) {
-                      setValue("dynamicicons", "true");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Dynamic Icons",
-                        message: "Dynamic icons have been enabled.",
-                        buttons: ["OK"],
-                      });
-                      return;
-                    }
-                  },
-                  checked: getValue("dynamicicons") === "true",
-                },
-                { type: "separator" },
-                {
-                  label: "Block Ads and Trackers",
-                  type: "checkbox",
-                  click: () => {
-                    if (getValue("blockadsandtrackers") === "true") {
-                      setValue("blockadsandtrackers", "false");
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Block Ads and Trackers",
-                        message: "Ads and trackers will no longer be blocked.",
-                        buttons: ["OK"],
-                      });
-                      ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
-                        (blocker) => {
-                          blocker.disableBlockingInSession(
-                            BrowserWindow.getFocusedWindow().webContents.session
-                          );
-                        }
-                      );
-                      return;
-                    }
-                    if (
-                      getValue("blockadsandtrackers") === "false" ||
-                      getValue("blockadsandtrackers") === undefined
-                    ) {
-                      setValue("blockadsandtrackers", "true");
-                      ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
-                        (blocker) => {
-                          blocker.enableBlockingInSession(
-                            BrowserWindow.getFocusedWindow().webContents.session
-                          );
-                          dialog.showMessageBoxSync({
-                            type: "info",
-                            title: "Block Ads and Trackers",
-                            message: "Ads and trackers will now be blocked.",
-                            buttons: ["OK"],
-                          });
-                        }
-                      );
-                      return;
-                    }
-                  },
-                  checked: getValue("blockadsandtrackers") === "true",
-                },
-                { type: "separator" },
-                {
-                  label: "Windows User-Agent String",
-                  type: "radio",
-                  click: () => {
-                    setUserAgent(useragents.Windows);
-                  },
-                  checked: getValue("useragentstring") === useragents.Windows,
-                },
-                {
-                  label: "macOS User-Agent String",
-                  type: "radio",
-                  click: () => {
-                    setUserAgent(useragents.macOS);
-                  },
-                  checked: getValue("useragentstring") === useragents.macOS,
-                },
-                {
-                  label: "Linux User-Agent String",
-                  type: "radio",
-                  click: () => {
-                    setValue("useragentstring", useragents.Linux);
-                    dialog.showMessageBoxSync({
-                      type: "info",
-                      title: "User agent switcher",
-                      message:
-                        "You have switched to Linux Useragent.\n\nPlease restart the app to apply the changes.",
-                      buttons: ["OK"],
-                    });
-                  },
-                  checked: getValue("useragentstring") === useragents.Linux,
-                },
-                { type: "separator" },
-                ...(process.platform === "win32" || process.platform === "linux"
-                  ? [
-                      {
-                        role: "quit",
-                        accelerator: "Ctrl+Q",
-                      },
-                    ]
-                  : []),
-              ],
-            },
-            { role: "services" },
-            { type: "separator" },
-            { label: "Hide MS-365-Electron", role: "hide" },
-            { role: "hideOthers" },
-            { role: "unhide" },
-            { type: "separator" },
-            { label: "Quit MS-365-Electron", role: "quit" },
-          ],
-        },
-      ]
+              { type: "separator" },
+              ...(process.platform === "win32" || process.platform === "linux"
+                ? [
+                  {
+                    label: 'exit',
+                    accelerator: 'Ctrl+Q',
+                    click: () => { app.quit(); },
+                  }
+                ]
+                : []),
+            ],
+          },
+          { role: "services" },
+          { type: "separator" },
+          { label: "Hide mail_desktop_electron", role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { label: "Quit mail_desktop_electron", role: "quit" },
+        ],
+      },
+    ]
     : []),
   ...(process.platform === "win32" || process.platform === "linux"
     ? [
-        {
-          label: "MS-365-Electron",
-          submenu: [
-            {
-              label: "About MS-365-Electron",
-              click: () => {
-                openAboutWindow({
-                  icon_path: path.join(__dirname, "../assets/about.png"),
-                  product_name: "MS-365-Electron",
-                  copyright:
-                    "Copyright (c) 2021-2023 Agampreet Singh\nMicrosoft 365, the name, website, images/icons\nare the intellectual properties of Microsoft.",
-                  package_json_dir: __dirname + "/../",
-                  bug_report_url:
-                    "https://github.com/agam778/MS-365-Electron/issues/",
-                  bug_link_text: "Report an issue",
-                  adjust_window_size: "2",
-                  show_close_button: "Close",
-                });
-              },
+      {
+        label: "#",
+        submenu: [
+          {
+            label: "about mail_desktop_electron",
+            icon: path.join(__dirname, "assets", "about16.png"),
+            click: () => {
+              openAboutWindow({
+                icon_path: path.join(__dirname, "assets", "about.png"),
+                product_name: "mail_desktop_electron",
+                copyright: "All third-party libraries/images are copyrighted by their respective owners.",
+                package_json_dir: __dirname + "/../",
+                bug_report_url: "https://pipiscrew.com",
+                bug_link_text: "home",
+                adjust_window_size: "2",
+                show_close_button: "Close",
+                win_options: { title: 'about', resizable: false, maximizable: false }
+              });
             },
-            {
-              label: "Check for Updates...",
-              click: async () => {
-                await checkForUpdates();
-              },
+          },
+          { type: "separator" },
+          {
+            label: "website permissions",
+            click: () => {
+              permissions_cfg.createConfigWindow();
             },
-            { type: "separator" },
-            {
-              label: "Learn More",
-              click: async () => {
-                await openExternalLink(
-                  "https://github.com/agam778/MS-365-Electron"
-                );
-              },
+          },
+          {
+            label: "test",
+            submenu: [
+              { label: "webRTC", icon: path.join(__dirname, "assets", "shield1.png"), click: () => { general.OpenNewWindow("https://browserleaks.com/webrtc"); }, },
+              { label: "user agent", icon: path.join(__dirname, "assets", "shield2.png"), click: () => { general.OpenNewWindow("https://www.whatismybrowser.com/detect/what-is-my-user-agent/"); }, },
+              { label: "canvas", icon: path.join(__dirname, "assets", "shield3.png"), click: () => { general.OpenNewWindow("https://browserleaks.com/canvas"); }, },
+            ]
+          },
+          { type: "separator" },
+          {
+            label: "open profile folder",
+            click: async () => {
+              await openLogsFolder();
             },
-            {
-              label: "Open Logs Folder",
-              click: async () => {
-                await openLogsFolder();
-              },
-            },
-            { type: "separator" },
-            {
-              label: "Open MS 365 with Personal Account",
-              type: "radio",
-              click() {
-                setValue(
-                  "enterprise-or-normal",
-                  "https://microsoft365.com/?auth=1"
-                );
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "MS 365 with Personal Account",
-                  message:
-                    "MS 365 will now open with your Personal Account.\n\nPlease restart the app to apply the changes.",
-                  buttons: ["OK"],
-                });
-              },
-              checked:
-                getValue("enterprise-or-normal") ===
-                "https://microsoft365.com/?auth=1",
-            },
-            {
-              label: "Open MS 365 with Work/School Account",
-              type: "radio",
-              click() {
-                setValue(
-                  "enterprise-or-normal",
-                  "https://microsoft365.com/?auth=2"
-                );
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "MS 365 with Work/School Account",
-                  message:
-                    "MS 365 will now open with your Work/School account.\n\nPlease restart the app to apply the changes.",
-                  buttons: ["OK"],
-                });
-              },
-              checked:
-                getValue("enterprise-or-normal") ===
-                "https://microsoft365.com/?auth=2",
-            },
-            { type: "separator" },
-            {
-              label: "Open Websites in New Windows",
-              type: "radio",
-              click: () => {
-                setValue("websites-in-new-window", "true");
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "Websites in New Windows",
-                  message:
-                    "Websites which are targeted to open in new tabs will now open in new windows.",
-                  buttons: ["OK"],
-                });
-              },
-              checked: getValue("websites-in-new-window") === "true",
-            },
-            {
-              label: "Open Websites in the Same Window",
-              type: "radio",
-              click: () => {
-                setValue("websites-in-new-window", "false");
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "Websites in New Windows",
-                  message:
-                    "Websites which are targeted to open in new tabs will now open in the same window.",
-                  buttons: ["OK"],
-                });
-              },
-              checked: getValue("websites-in-new-window") === "false",
-            },
-            { type: "separator" },
-            {
-              label: "Enable Discord RPC",
-              type: "checkbox",
-              click: () => {
-                if (getValue("discordrpcstatus") === "true") {
-                  setValue("discordrpcstatus", "false");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Discord RPC",
-                    message: "Discord RPC has been disabled.",
-                    buttons: ["OK"],
-                  });
-                  clearActivity();
-                  return;
-                } else if (
-                  getValue("discordrpcstatus") === "false" ||
-                  getValue("discordrpcstatus") === undefined
-                ) {
-                  setValue("discordrpcstatus", "true");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Discord RPC",
-                    message: "Discord RPC has been enabled.",
-                    buttons: ["OK"],
-                  });
-                  setActivity(
-                    `On ${BrowserWindow.getFocusedWindow().webContents.getTitle()}`
-                  );
-                  return;
-                }
-              },
-              checked: getValue("discordrpcstatus") === "true",
-            },
-            {
-              label: "Enable Auto Updates",
-              type: "checkbox",
-              click: () => {
-                if (getValue("autoupdater") === "true") {
-                  setValue("autoupdater", "false");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Auto Updates",
-                    message: "Auto updates have been disabled.",
-                    buttons: ["OK"],
-                  });
-                  return;
-                } else if (
-                  getValue("autoupdater") === "false" ||
-                  getValue("autoupdater") === undefined
-                ) {
-                  setValue("autoupdater", "true");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Auto Updates",
-                    message: "Auto updates have been enabled.",
-                    buttons: ["OK"],
-                  });
-                  return;
-                }
-              },
-              checked: getValue("autoupdater") === "true",
-            },
-            {
-              label: "Enable Dynamic Icons",
-              type: "checkbox",
-              click: () => {
-                if (getValue("dynamicicons") === "true") {
-                  setValue("dynamicicons", "false");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Dynamic Icons",
-                    message: "Dynamic icons have been disabled.",
-                    buttons: ["OK"],
-                  });
-                  return;
-                } else if (
-                  getValue("dynamicicons") === "false" ||
-                  getValue("dynamicicons") === undefined
-                ) {
-                  setValue("dynamicicons", "true");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Dynamic Icons",
-                    message: "Dynamic icons have been enabled.",
-                    buttons: ["OK"],
-                  });
-                  return;
-                }
-              },
-              checked: getValue("dynamicicons") === "true",
-            },
-            { type: "separator" },
-            {
-              label: "Block Ads and Trackers",
-              type: "checkbox",
-              click: () => {
-                if (getValue("blockadsandtrackers") === "true") {
-                  setValue("blockadsandtrackers", "false");
-                  dialog.showMessageBoxSync({
-                    type: "info",
-                    title: "Block Ads and Trackers",
-                    message: "Ads and trackers will no longer be blocked.",
-                    buttons: ["OK"],
-                  });
-                  ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
-                    (blocker) => {
-                      blocker.disableBlockingInSession(
-                        BrowserWindow.getFocusedWindow().webContents.session
-                      );
-                    }
-                  );
-                  return;
-                }
-                if (
-                  getValue("blockadsandtrackers") === "false" ||
-                  getValue("blockadsandtrackers") === undefined
-                ) {
-                  setValue("blockadsandtrackers", "true");
-                  ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
-                    (blocker) => {
-                      blocker.enableBlockingInSession(
-                        BrowserWindow.getFocusedWindow().webContents.session
-                      );
-                      dialog.showMessageBoxSync({
-                        type: "info",
-                        title: "Block Ads and Trackers",
-                        message: "Ads and trackers will now be blocked.",
-                        buttons: ["OK"],
-                      });
-                    }
-                  );
-                  return;
-                }
-              },
-              checked: getValue("blockadsandtrackers") === "true",
-            },
-            { type: "separator" },
-            {
-              label: "Windows User-Agent String",
-              type: "radio",
-              click: () => {
-                setUserAgent(useragents.Windows);
-              },
-              checked: getValue("useragentstring") === useragents.Windows,
-            },
-            {
-              label: "macOS User-Agent String",
-              type: "radio",
-              click: () => {
-                setUserAgent(useragents.macOS);
-              },
-              checked: getValue("useragentstring") === useragents.macOS,
-            },
-            {
-              label: "Linux User-Agent String",
-              type: "radio",
-              click: () => {
-                setValue("useragentstring", useragents.Linux);
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "User agent switcher",
-                  message:
-                    "You have switched to Linux Useragent.\n\nPlease restart the app to apply the changes.",
-                  buttons: ["OK"],
-                });
-              },
-              checked: getValue("useragentstring") === useragents.Linux,
-            },
-            { type: "separator" },
-            ...(process.platform === "win32" || process.platform === "linux"
-              ? [
-                  {
-                    role: "quit",
-                    accelerator: "Ctrl+Q",
-                  },
-                ]
-              : []),
-          ],
-        },
-      ]
+          },
+          {
+            label: "user agent",
+            click: () => {
+              const options = {
+                type: "info",
+                buttons: ["Ok"],
+                defaultId: 2,
+                title: "Info",
+                message: "create or edit",
+                detail: path.join(process.cwd(), "useragent.txt"),
+              };
+              dialog.showMessageBox(null, options, (response) => {
+                console.log(response);
+              });
+            }
+          },
+          { type: "separator" },
+          ...(process.platform === "win32" || process.platform === "linux"
+            ? [
+              {
+                label: 'exit',
+                accelerator: 'Ctrl+Q',
+                click: () => { app.quit(); },
+              }
+            ]
+            : []),
+        ],
+      },
+    ]
     : []),
   {
     label: "File",
     submenu: [
       {
-        label: "New Window (Personal)",
-        accelerator: "CmdOrCtrl+N",
-        click: () => {
-          let newWindow = new BrowserWindow({
-            width: 1081,
-            height: 570,
-            webPreferences: {
-              nodeIntegration: true,
-              devTools: true,
-              partition: "persist:personal",
-            },
-          });
-          newWindow.loadURL("https://microsoft365.com/?auth=1");
-        },
-      },
-      {
-        label: "New Window (Work/School)",
-        accelerator: "CmdOrCtrl+Shift+N",
-        click: () => {
-          let newWindow = new BrowserWindow({
-            width: 1081,
-            height: 570,
-            webPreferences: {
-              nodeIntegration: true,
-              devTools: true,
-              partition: "persist:work",
-            },
-          });
-          newWindow.loadURL("https://microsoft365.com/?auth=2");
-        },
-      },
-      { type: "separator" },
-      {
-        label: "Close Window",
+        label: "close window",
+        icon: path.join(__dirname, "assets", "close16.png"),
         accelerator: "CmdOrCtrl+W",
         click: () => {
           try {
@@ -767,7 +201,8 @@ const menulayout = [
         },
       },
       {
-        label: "Close All Windows",
+        label: "close all windows",
+        // icon: path.join(__dirname, "assets", "closeA16.png",
         accelerator: "CmdOrCtrl+Shift+W",
         click: () => {
           BrowserWindow.getAllWindows().forEach((window) => {
@@ -777,26 +212,45 @@ const menulayout = [
       },
       { type: "separator" },
       {
-        label: "Copy URL to Clipboard",
+        label: "resize all to default",
+        click: () => {
+          BrowserWindow.getAllWindows().forEach((window) => {
+            window.setSize(1181,670); 
+            window.restore();
+          });
+        },
+      },
+      {
+        label: "minimize all windows",
+        click: () => {
+          BrowserWindow.getAllWindows().forEach((window) => {
+            console.log(window);
+            window.minimize();
+          });
+        },
+      },
+      { type: "separator" },
+      {
+        label: "copy URL to clipboard",
+        icon: path.join(__dirname, "assets", "clipboard16.png"),
         accelerator: "CmdOrCtrl+Shift+C",
         click: () => {
-          const url = BrowserWindow.getFocusedWindow().webContents.getURL();
-          clipboard.writeText(url);
+          clipboard.writeText(BrowserWindow.getFocusedWindow().webContents.getURL());
         },
       },
       ...(process.platform === "darwin"
         ? [
-            {
-              label: "Share...",
-              click: () => {
-                let sharemenu = new ShareMenu({
-                  urls: [BrowserWindow.getFocusedWindow().webContents.getURL()],
-                  texts: [BrowserWindow.getFocusedWindow().getTitle()],
-                });
-                sharemenu.popup();
-              },
+          {
+            label: "Share...",
+            click: () => {
+              let sharemenu = new ShareMenu({
+                urls: [BrowserWindow.getFocusedWindow().webContents.getURL()],
+                texts: [BrowserWindow.getFocusedWindow().getTitle()],
+              });
+              sharemenu.popup();
             },
-          ]
+          },
+        ]
         : []),
     ],
   },
@@ -811,57 +265,32 @@ const menulayout = [
       { role: "paste" },
       ...(process.platform === "darwin"
         ? [
-            { role: "pasteAndMatchStyle" },
-            { role: "delete" },
-            { role: "selectAll" },
-            { type: "separator" },
-            {
-              label: "Speech",
-              submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
-            },
-          ]
+          { role: "pasteAndMatchStyle" },
+          { role: "delete" },
+          { role: "selectAll" },
+          { type: "separator" },
+          {
+            label: "Speech",
+            submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
+          },
+        ]
         : [{ role: "delete" }, { type: "separator" }, { role: "selectAll" }]),
     ],
   },
   {
     label: "Navigation",
     submenu: [
-      {
-        label: "Back",
-        click: () => {
-          BrowserWindow.getFocusedWindow().webContents.goBack();
-        },
-        accelerator: "Alt+Left",
-      },
-      {
-        label: "Forward",
-        click: () => {
-          BrowserWindow.getFocusedWindow().webContents.goForward();
-        },
-        accelerator: "Alt+Right",
-      },
-      {
-        label: "Reload",
-        click: () => {
-          BrowserWindow.getFocusedWindow().webContents.reload();
-        },
-        accelerator: "CmdOrCtrl+R",
-      },
-      {
-        label: "Home",
-        click: () => {
-          BrowserWindow.getFocusedWindow().loadURL(
-            `${getValue("enterprise-or-normal")}`
-          );
-        },
-      },
+      { label: "Back", icon: path.join(__dirname, "assets", "back16.png"), click: () => { BrowserWindow.getFocusedWindow().webContents.goBack(); }, accelerator: "Alt+Left" },
+      { label: "Forward", icon: path.join(__dirname, "assets", "forward16.png"), click: () => { BrowserWindow.getFocusedWindow().webContents.goForward(); }, accelerator: "Alt+Right" },
+      { type: "separator" },
+      { label: "Reload", icon: path.join(__dirname, "assets", "reload16.png"), click: () => { BrowserWindow.getFocusedWindow().webContents.reload(); }, accelerator: "CmdOrCtrl+R" },
     ],
   },
   {
     label: "View",
     submenu: [
-      { role: "reload" },
-      { role: "forceReload" },
+      { role: "reload", icon: path.join(__dirname, "assets", "reload16.png") },
+      { role: "forceReload", icon: path.join(__dirname, "assets", "reloadF16.png") },
       { type: "separator" },
       { role: "resetZoom" },
       {
@@ -871,394 +300,61 @@ const menulayout = [
       { role: "zoomOut" },
       { type: "separator" },
       { role: "togglefullscreen" },
+      { type: "separator" },
+      {
+        label: 'Toggle Developer Tools',
+        accelerator: (function () {
+          if (process.platform === 'darwin')
+            return 'Alt+Command+I';
+          else
+            return 'F12';//'Ctrl+Shift+I';
+        })(),
+        click: function (item, focusedWindow) {
+          if (focusedWindow)
+            focusedWindow.toggleDevTools();
+        }
+      },
+
     ],
   },
   {
-    label: "Apps",
+    label: "OPEN",
     submenu: [
+      { label: "gmail1", icon: path.join(__dirname, "assets", "gmail16.png"), click: () => { general.OpenNewWindow("https://mail.google.com/mail/u/0/#inbox", "persist:gmail1", "gmail16.png"); }, },
+      { label: "gmail2", icon: path.join(__dirname, "assets", "gmail16.png"), click: () => { general.OpenNewWindow("https://mail.google.com/mail/u/0/#inbox", "persist:gmail2", "gmail16.png"); }, },
+      { label: "github", icon: path.join(__dirname, "assets", "github16.png"), click: () => { general.OpenNewWindow("https://www.github.com", "persist:github", "github16.png"); }, },
+      { label: "hotmail1", icon: path.join(__dirname, "assets", "outlook16.png"), click: () => { general.OpenNewWindow("https://login.live.com", "persist:hotmail1", "outlook16.png"); }, },
+      { label: "hotmail2", icon: path.join(__dirname, "assets", "outlook16.png"), click: () => { general.OpenNewWindow("https://login.live.com", "persist:hotmail2", "outlook16.png"); }, },
+      { label: "linkedin", icon: path.join(__dirname, "assets", "linkedin16.png"), click: () => { general.OpenNewWindow("https://www.linkedin.com", "persist:linkedin", "linkedin16.png"); }, },
+      { label: "yahoo", icon: path.join(__dirname, "assets", "yahoo16.png"), click: () => { general.OpenNewWindow("https://mail.yahoo.com", "persist:yahoo", "yahoo16.png"); }, },
+      { label: "telegram", icon: path.join(__dirname, "assets", "telegram16.png"), click: () => { general.OpenNewWindow("https://web.telegram.org", "persist:telegram", "telegram16.png"); }, },
+      { label: "discord", icon: path.join(__dirname, "assets", "discord16.png"), click: () => { general.OpenNewWindow("https://discord.com/channels/@me", "persist:discord", "discord16.png"); }, },
+      { label: "proton", icon: path.join(__dirname, "assets", "proton16.png"), click: () => { general.OpenNewWindow("https://mail.protonmail.com", "persist:proton", "proton16.png"); }, },
+      { label: "twitter", icon: path.join(__dirname, "assets", "twitter16.png"), click: () => { general.OpenNewWindow("https://www.twitter.com", "persist:twitter", "twitter16.png"); }, },
+      { label: "messenger", icon: path.join(__dirname, "assets", "messenger16.png"), click: () => { general.OpenNewWindow("https://www.messenger.com", "persist:messenger", "messenger16.png"); }, },
+      { type: "separator" },
       {
-        label: "Word",
+        label: "open w/ cookies",
+        icon: path.join(__dirname, "assets", "open_in_container.png"),
+        sublabel: "clipboard",
         click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let wordwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              wordwindow.loadURL("https://microsoft365.com/launch/word?auth=2");
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/word?auth=2"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let wordwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              wordwindow.loadURL("https://microsoft365.com/launch/word?auth=1");
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/word?auth=1"
-              );
-            }
-          }
+          if (!clipboard.readText().toLowerCase().startsWith('http'))
+            general.ShowMessageBox("the options 'open x' work when there is a URL to clipboard");
+          else 
+            general.OpenNewWindow(clipboard.readText(), BrowserWindow.getFocusedWindow().partitionName); 
         },
       },
-      {
-        label: "Excel",
-        click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let excelwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              excelwindow.loadURL(
-                "https://microsoft365.com/launch/excel?auth=2"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/excel?auth=2"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let excelwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              excelwindow.loadURL(
-                "https://microsoft365.com/launch/excel?auth=1"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/excel?auth=1"
-              );
-            }
-          }
+        {
+          label: "open",
+          icon: path.join(__dirname, "assets", "open_in_global.png"),
+          sublabel: "clipboard",
+          click: () => {
+            if (!clipboard.readText().toLowerCase().startsWith('http'))
+              general.ShowMessageBox("the options 'open x' work when there is a URL to clipboard");
+            else 
+              general.OpenNewWindow(clipboard.readText(), null); 
         },
       },
-      {
-        label: "PowerPoint",
-        click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let powerpointwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              powerpointwindow.loadURL(
-                "https://microsoft365.com/launch/powerpoint?auth=2"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/powerpoint?auth=2"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let powerpointwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              powerpointwindow.loadURL(
-                "https://microsoft365.com/launch/powerpoint?auth=1"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/powerpoint?auth=1"
-              );
-            }
-          }
-        },
-      },
-      {
-        label: "Outlook",
-        click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let outlookwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              outlookwindow.loadURL("https://outlook.office.com/mail/");
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://outlook.office.com/mail/"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let outlookwindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              outlookwindow.loadURL(
-                "https://office.live.com/start/Outlook.aspx"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://office.live.com/start/Outlook.aspx"
-              );
-            }
-          }
-        },
-      },
-      {
-        label: "OneDrive",
-        click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let onedrivewindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              onedrivewindow.loadURL(
-                "https://microsoft365.com/launch/onedrive?auth=2"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/onedrive?auth=2"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let onedrivewindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              onedrivewindow.loadURL(
-                "https://microsoft365.com/launch/onedrive?auth=1"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://microsoft365.com/launch/onedrive?auth=1"
-              );
-            }
-          }
-        },
-      },
-      {
-        label: "OneNote",
-        click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let onenotewindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              onenotewindow.loadURL(
-                "https://www.microsoft365.com/launch/onenote?auth=2"
-              );
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://www.microsoft365.com/launch/onenote?auth=2"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let onenotewindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              onenotewindow.loadURL("https://www.onenote.com/notebooks?auth=1");
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://www.onenote.com/notebooks?auth=1"
-              );
-            }
-          }
-        },
-      },
-      {
-        label: "All Apps",
-        click: () => {
-          if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=2"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let allappswindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:work",
-                },
-              });
-              allappswindow.loadURL("https://www.microsoft365.com/apps?auth=2");
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://www.microsoft365.com/apps?auth=2"
-              );
-            }
-          } else if (
-            getValue("enterprise-or-normal") ===
-            "https://microsoft365.com/?auth=1"
-          ) {
-            if (getValue("websites-in-new-window") === "true") {
-              let allappswindow = new BrowserWindow({
-                width: 1081,
-                height: 570,
-                webPreferences: {
-                  nodeIntegration: false,
-                  contextIsolation: true,
-                  partition: "persist:personal",
-                },
-              });
-              allappswindow.loadURL("https://www.microsoft365.com/apps?auth=1");
-            } else {
-              BrowserWindow.getFocusedWindow().loadURL(
-                "https://www.microsoft365.com/apps?auth=1"
-              );
-            }
-          }
-        },
-      },
-    ],
-  },
-  {
-    label: "Window",
-    submenu: [
-      { role: "minimize" },
-      { role: "zoom" },
-      ...(process.platform === "darwin"
-        ? [{ type: "separator" }, { role: "front" }, { type: "separator" }]
-        : [{ role: "close" }]),
-      ...(process.platform === "win32" || process.platform === "linux"
-        ? [
-            { type: "separator" },
-            {
-              label: "Show Menu Bar",
-              type: "radio",
-              click: () => {
-                setValue("autohide-menubar", "false");
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "Menu Bar Settings",
-                  message:
-                    "Menu will be visible now. Please restart the app for changes to take effect.",
-                  buttons: ["OK"],
-                });
-              },
-              checked: getValue("autohide-menubar") === "false",
-            },
-            {
-              label: "Hide Menu Bar (ALT to show)",
-              type: "radio",
-              click: () => {
-                setValue("autohide-menubar", "true");
-                dialog.showMessageBoxSync({
-                  type: "info",
-                  title: "Menu Bar Settings",
-                  message:
-                    "Menu bar will be automatically hidden now. Please restart the app for changes to take effect.",
-                  buttons: ["OK"],
-                });
-              },
-              checked: getValue("autohide-menubar") === "true",
-            },
-          ]
-        : []),
     ],
   },
 ];
