@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+</head>
+<body>
+  <h1>Configuration</h1>
+
+These are the permissions can be set as per <a href="https://www.electronjs.org/docs/latest/api/session#sessetpermissionrequesthandlerhandler" target="_blank">electronJS page</a>
+<br/>
+<span style='color:red'>By checking an option you <strong>disable</strong> the functionality.</span>
+<br/>Changes applied <strong>only</strong> to new pages opened ( or restart the application to cover all pages ).
+<br/>
+<br/>
+
+<label>
+    <input type="checkbox" id="clipboard_read"> clipboard_read - Access to read from the clipboard
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="clipboard_sanitized_write"> clipboard_sanitized_write - Access to write to the clipboard
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="display_capture"> display_capture - Access to capture the screen via the Screen Capture API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="fullscreen"> fullscreen - Control of the app's fullscreen state via the Fullscreen API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="geolocation"> geolocation - Access to the user's location via the Geolocation API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="idle_detection"> idle_detection - Access to the user's idle state via the IdleDetector API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="media"> media - Access to media devices such as camera, microphone and speakers
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="mediaKeySystem"> mediaKeySystem - Access to DRM protected content
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="midi"> midi - MIDI access in the Web MIDI API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="midiSysex"> midiSysex - Request the use of system exclusive messages in the Web MIDI API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="notifications"> notifications - Approve notification creation and the ability to display them in the user's system tray using the Notifications API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="pointerLock"> pointerLock - Approve to directly interpret mouse movements as an input method via the Pointer Lock API. These requests always appear to originate from the main frame
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="keyboardLock"> keyboardLock - Approve capture of keypresses for any or all of the keys on the physical keyboard via the Keyboard Lock API. These requests always appear to originate from the main frame
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="openExternal"> openExternal - Approve to open links in external applications
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="window_management"> window_management - Access to enumerate screens using the getScreenDetails API
+  </label>
+<br/>
+<label>
+    <input type="checkbox" id="background_sync"> background_sync - Allows web applications to continue to synchronize data in the background
+</label>
+<br/>
+<label>
+    <input type="checkbox" id="unknown"> <strong>Unknown</strong> - Any other permissions not mentioned above fall to this switch
+ </label>
+<br/>
+<span style='color:red'>WebGL disabled by default!</span>
+  <br/> <br/>
+
+  <button id="saveBtn">save</button>
+  <button id="resetBtn">reset defaults</button>
+    
+ <script>
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.ipcRenderer.invoke('load-data').then(data => {
+          console.log(data);
+              document.getElementById('clipboard_read').checked = data.clipboard_read;
+              document.getElementById('clipboard_sanitized_write').checked = data.clipboard_sanitized_write;
+              document.getElementById('display_capture').checked = data.display_capture;
+              document.getElementById('fullscreen').checked = data.fullscreen;
+              document.getElementById('geolocation').checked = data.geolocation;
+              document.getElementById('idle_detection').checked = data.idle_detection;
+              document.getElementById('media').checked = data.media;
+              document.getElementById('mediaKeySystem').checked = data.mediaKeySystem;
+              document.getElementById('midi').checked = data.midi;
+              document.getElementById('midiSysex').checked = data.midiSysex;
+              document.getElementById('notifications').checked = data.notifications;
+              document.getElementById('pointerLock').checked = data.pointerLock;
+              document.getElementById('keyboardLock').checked = data.keyboardLock;
+              document.getElementById('openExternal').checked = data.openExternal;
+              document.getElementById('window_management').checked = data.window_management;
+              document.getElementById('background_sync').checked = data.background_sync;
+              document.getElementById('unknown').checked = data.unknown;
+        });
+        console.log("done load=data");
+
+        document.getElementById('saveBtn').addEventListener('click', () => {
+            const data = {
+                clipboard_read: document.getElementById('clipboard_read').checked,
+                clipboard_sanitized_write: document.getElementById('clipboard_sanitized_write').checked,
+                display_capture: document.getElementById('display_capture').checked,
+                fullscreen: document.getElementById('fullscreen').checked,
+                geolocation: document.getElementById('geolocation').checked,
+                idle_detection: document.getElementById('idle_detection').checked,
+                media: document.getElementById('media').checked,
+                mediaKeySystem: document.getElementById('mediaKeySystem').checked,
+                midi: document.getElementById('midi').checked,
+                midiSysex: document.getElementById('midiSysex').checked,
+                notifications: document.getElementById('notifications').checked,
+                pointerLock: document.getElementById('pointerLock').checked,
+                keyboardLock: document.getElementById('keyboardLock').checked,
+                openExternal: document.getElementById('openExternal').checked,
+                window_management: document.getElementById('window_management').checked,
+                background_sync: document.getElementById('background_sync').checked,
+                unknown: document.getElementById('unknown').checked,
+            };
+
+            window.ipcRenderer.invoke('save-data', data);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+          window.ipcRenderer.invoke('reset-data');
+        });
+
+    });
+</script>
+  
+
+</body>
+</html>
