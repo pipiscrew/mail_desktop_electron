@@ -27,7 +27,7 @@ Full credits to `Agampreet Singh`, for his project, without him this repo will b
 
 ![img](./media/comparison.png)  
 
-At `releases`, application distributed without [ASAR](https://www.electronjs.org/docs/latest/tutorial/application-distribution) [[2](https://github.com/electron/asar)] [[3](https://www.electronjs.org/docs/latest/tutorial/asar-archives)] compression as found there is no need, for this number of files. User is able to modify the js and run flawless without the need of compilation or nodeJS installation.  
+At `releases`, application distributed without [ASAR](https://www.electronjs.org/docs/latest/tutorial/application-distribution) [[2](https://github.com/electron/asar)] [[3](https://www.electronjs.org/docs/latest/tutorial/asar-archives)] package (concatenates all files together without compression) as found there is no need, for this number of files. User is able to modify the js and run flawless without the need of compilation or nodeJS installation.  
 
 ---
 
