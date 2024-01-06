@@ -1,21 +1,36 @@
-const Store = require("electron-store");
-const store = new Store();
+const fs = require('fs');
+const path = require('path');
 
-function getValue(key) {
-  return store.get(key);
-}
-
-function setValue(key, value) {
-  store.set(key, value);
-}
-
-function getValueOrDefault(key, defaultValue) {
-  const value = store.get(key);
-  if (value === undefined) {
-    store.set(key, defaultValue);
-    return defaultValue;
+  function save(key, value) {
+    this.settings = loadSettings();
+    this.settings[key] = value;
+    fs.writeFileSync(path.join(__dirname, 'settings.json'), JSON.stringify(this.settings, null, 2));
+    // console.log(`Saved ${key}: ${value} to settings.json`);
   }
-  return value;
-}
 
-module.exports = { getValue, setValue, getValueOrDefault };
+  function load(key) {
+     this.settings = loadSettings();
+     return this.settings[key];
+  }
+
+  function getValueOrDefault(key, defaultValue) {
+    let value = load(key);
+    if (value === undefined) {
+      save(key, defaultValue);
+      return defaultValue;
+    }
+    return value;
+  }
+
+  function loadSettings() {
+    try {
+      let data = fs.readFileSync(path.join(__dirname, 'settings.json'), 'utf-8');
+      return JSON.parse(data);
+    } catch (error) {
+      // If the file doesn't exist or there's an error parsing it, return an empty object
+      console.log(`Error loading settings: ${error.message}`);
+      return {};
+    }
+  }
+
+module.exports = { save, load, getValueOrDefault };

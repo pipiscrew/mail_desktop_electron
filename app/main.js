@@ -1,5 +1,4 @@
-const { app, Menu, BrowserWindow, dialog, session } = require("electron");
-const fs = require('fs');
+const { app, Menu, dialog } = require("electron");
 const ElectronDl = require("electron-dl");
 const contextMenu = require("electron-context-menu");
 const path = require("path");
@@ -12,10 +11,39 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
   console.log("Another instance is running please switch to it");
   app.exit(0);
-} 
+}
+
+// // Set the user data directory before creating the BrowserWindow - https://www.electronjs.org/docs/latest/api/app#appgetpathname
+app.setPath('userData', path.join(process.cwd(), "profile")); //on startup electron creates by default %appdata%/appname/locked
+// // app.setPath('logs', path.join(process.cwd(), "profile"));
+// // app.setPath('temp', path.join(process.cwd(), "profile"));
+
+if (process.argv.slice(1).includes('clean')) {
+  console.log("/\/\/\/ - clean profile");
+  general.CleanProfile(path.join(process.cwd(), "profile"));
+  console.log("/\/\/\/ - press enter to exit");
+  app.exit(0);
+  return;
+}
+
+
+app.commandLine.appendSwitch("no-proxy-server");
+app.commandLine.appendSwitch("disable-reading-from-canvas");
+app.disableHardwareAcceleration(); //(same as app.commandLine.appendSwitch("disable-gpu");) //https://hardwaretester.com/gpu already /unknown/ by default - GPU is up and running always (software or hardware). - https://www.electronjs.org/docs/latest/api/command-line
+app.commandLine.appendSwitch("disable-software-rasterizer"); //src - https://github.com/electron/electron/issues/20702
+// 
+// app.commandLine.appendSwitch("enable-media-stream", "0"); //does not take any place - use # > web permissions
+// app.commandLine.appendSwitch("disable-webgl"); //does not take any place rather we must use BrowserWindow.webPreferences.webgl: false
+// ref - https://www.electronjs.org/docs/latest/api/command-line-switches - https://peter.sh/experiments/chromium-command-line-switches/
+//
+//https://github.com/electron/electron/blob/73e7125041339bf0fc319242a00fdb75d4554895/docs/api/app.md?plain=1#L480
+// console.log(app.getAppMetrics());
+// console.log(app.getGPUFeatureStatus());
+
+// return;
 
 //validate internet connectivity on startup
-fetch('https://mozilla.org')
+fetch('https://mail.google.com', {cache: "no-store"})
   .then(response => {
     if (!response.ok) {
       throw new Error('Server not reachable');
@@ -88,7 +116,7 @@ contextMenu({ // https://github.com/sindresorhus/electron-context-menu
       visible: parameters.linkURL.length > 0 && parameters.mediaType === 'none',
       click: () => {
         // console.log(browserWindow.partitionName);
-        general.OpenNewWindow( parameters.linkURL, browserWindow.partitionName ) //BrowserWindow.getFocusedWindow().partitionName )
+        general.OpenNewWindow(parameters.linkURL, browserWindow.partitionName) //BrowserWindow.getFocusedWindow().partitionName )
         // console.log( parameters.linkURL);
       }
     },
@@ -96,7 +124,7 @@ contextMenu({ // https://github.com/sindresorhus/electron-context-menu
       label: 'Open in new window',
       visible: parameters.linkURL.length > 0 && parameters.mediaType === 'none',
       click: () => {
-        general.OpenNewWindow( parameters.linkURL, null )
+        general.OpenNewWindow(parameters.linkURL, null)
       }
     },
     {
@@ -122,19 +150,14 @@ Menu.setApplicationMenu(Menu.buildFromTemplate(menulayout));
 
 
 app.on("ready", () => {
-  //when useragent defined apply it cross BrowserWindows
-  if (BrowserWindow.getAllWindows().length === 0) {
-    let f = path.join(process.cwd(), "useragent.txt");
-    if (fs.existsSync(f))
-      general.SetUserAgent(fs.readFileSync(f, 'utf-8'));
-  }
+
 
   //load permissions
-  general.LoadPermissions();
-  
+  // console.log (general.LoadPermissions());
+
   //create icon
   general.TrayIcon();
-  
+
   //open default
   general.OpenNewWindow("https://mail.google.com/mail/u/0/#inbox", "persist:gmail1", "gmail16.png");
 });
@@ -147,3 +170,4 @@ app.on("window-all-closed", () => {
     app.dock.setIcon(null);
   }
 });
+

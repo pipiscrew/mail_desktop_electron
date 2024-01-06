@@ -1,40 +1,9 @@
-const {
-  app,
-  dialog,
-  BrowserWindow,
-  ShareMenu,
-  clipboard,
-} = require("electron");
+const { app, BrowserWindow, ShareMenu, clipboard } = require("electron");
 // const { shell } = require("electron");
 const openAboutWindow = require("about-window").default;
 const path = require("path");
 const general = require("./general");
 const permissions_cfg = require("./permissions_cfg");
-
-
-async function openExternalLink(url) {
-  const { shell } = require("electron");
-  await shell.openExternal(url);
-}
-
-async function openLogsFolder() {
-  const { shell } = require("electron");
-  if (process.platform === "win32") {
-    await shell.openPath(
-      "C:\\Users\\" +
-      process.env.USERNAME +
-      "\\AppData\\Roaming\\mail_desktop_electron\\"
-    );
-  } else if (process.platform === "darwin") {
-    await shell.openPath(
-      "/Users/" + process.env.USER + "/Library/Logs/mail_desktop_electron/"
-    );
-  } else if (process.platform === "linux") {
-    await shell.openPath(
-      "/home/" + process.env.USER + "/.config/mail_desktop_electron/logs/"
-    );
-  }
-}
 
 /*
   https://www.electronjs.org/docs/latest/api/menu
@@ -47,7 +16,7 @@ const menulayout = [
         label: app.name,
         submenu: [
           {
-            label: "about mail_desktop_electron",
+            label: "about",
             click: () => {
               openAboutWindow({
                 icon_path: path.join(__dirname, "assets", "about.png"),
@@ -62,33 +31,10 @@ const menulayout = [
               });
             },
           },
-          {
-            label: "open profile folder",
-            click: async () => {
-              await openLogsFolder();
-            },
-          },
           { type: "separator" },
           {
             label: "Preferences",
             submenu: [
-              {
-                label: "user agent",
-                click: () => {
-                  const options = {
-                    type: "info",
-                    buttons: ["Ok"],
-                    defaultId: 2,
-                    title: "Info",
-                    message: "create or edit",
-                    detail: path.join(process.cwd(), "useragent.txt"),
-                  };
-                  dialog.showMessageBox(null, options, (response) => {
-                    console.log(response);
-                  });
-                }
-              },
-              { type: "separator" },
               ...(process.platform === "win32" || process.platform === "linux"
                 ? [
                   {
@@ -117,7 +63,7 @@ const menulayout = [
         label: "#",
         submenu: [
           {
-            label: "about mail_desktop_electron",
+            label: "about",
             icon: path.join(__dirname, "assets", "about16.png"),
             click: () => {
               openAboutWindow({
@@ -146,30 +92,18 @@ const menulayout = [
               { label: "webRTC", icon: path.join(__dirname, "assets", "shield1.png"), click: () => { general.OpenNewWindow("https://browserleaks.com/webrtc"); }, },
               { label: "user agent", icon: path.join(__dirname, "assets", "shield2.png"), click: () => { general.OpenNewWindow("https://www.whatismybrowser.com/detect/what-is-my-user-agent/"); }, },
               { label: "canvas", icon: path.join(__dirname, "assets", "shield3.png"), click: () => { general.OpenNewWindow("https://browserleaks.com/canvas"); }, },
+              { label: "permissions", icon: path.join(__dirname, "assets", "shield4.png"), click: () => { general.OpenNewWindow("https://permission.site"); }, },
+              { label: "GPU", icon: path.join(__dirname, "assets", "shield4.png"), click: () => { general.OpenNewWindow("chrome://gpu"); }, },
+              { type: "separator" },
+              { label: "games", icon: path.join(__dirname, "assets", "games16.png"), click: () => { general.OpenNewWindow("https://pipiscrew.com/apps/games.html"); }, },
             ]
           },
           { type: "separator" },
           {
-            label: "open profile folder",
-            click: async () => {
-              await openLogsFolder();
-            },
-          },
-          {
-            label: "user agent",
+            label: "clear profile",
             click: () => {
-              const options = {
-                type: "info",
-                buttons: ["Ok"],
-                defaultId: 2,
-                title: "Info",
-                message: "create or edit",
-                detail: path.join(process.cwd(), "useragent.txt"),
-              };
-              dialog.showMessageBox(null, options, (response) => {
-                console.log(response);
-              });
-            }
+              general.ShowMessageBox("execute :\nmail_desktop_electron.exe clean");
+            },
           },
           { type: "separator" },
           ...(process.platform === "win32" || process.platform === "linux"
@@ -177,7 +111,7 @@ const menulayout = [
               {
                 label: 'exit',
                 accelerator: 'Ctrl+Q',
-                click: () => { app.quit(); },
+                click: () => { app.exit(); },
               }
             ]
             : []),
@@ -193,20 +127,14 @@ const menulayout = [
         icon: path.join(__dirname, "assets", "close16.png"),
         accelerator: "CmdOrCtrl+W",
         click: () => {
-          try {
-            BrowserWindow.getFocusedWindow().close();
-          } catch {
-            return;
-          }
+          BrowserWindow.getFocusedWindow().close();
         },
       },
       {
-        label: "close all windows",
-        // icon: path.join(__dirname, "assets", "closeA16.png",
-        accelerator: "CmdOrCtrl+Shift+W",
+        label: "minimize all windows",
         click: () => {
           BrowserWindow.getAllWindows().forEach((window) => {
-            window.close();
+            window.minimize();
           });
         },
       },
@@ -215,18 +143,16 @@ const menulayout = [
         label: "resize all to default",
         click: () => {
           BrowserWindow.getAllWindows().forEach((window) => {
-            window.setSize(1181,670); 
+            window.setSize(1181, 670);
             window.restore();
           });
         },
       },
       {
-        label: "minimize all windows",
+        label: "close all except this",
+        accelerator: "CmdOrCtrl+Shift+W",
         click: () => {
-          BrowserWindow.getAllWindows().forEach((window) => {
-            console.log(window);
-            window.minimize();
-          });
+          BrowserWindow.getAllWindows().filter(w => w.id !== BrowserWindow.getFocusedWindow().id).forEach(window => window.close());
         },
       },
       { type: "separator" },
@@ -338,24 +264,25 @@ const menulayout = [
         icon: path.join(__dirname, "assets", "open_in_container.png"),
         sublabel: "clipboard",
         click: () => {
-          if (!clipboard.readText().toLowerCase().startsWith('http'))
-            general.ShowMessageBox("the options 'open x' work when there is a URL to clipboard");
-          else 
-            general.OpenNewWindow(clipboard.readText(), BrowserWindow.getFocusedWindow().partitionName); 
+          if (!clipboard.readText().toLowerCase().startsWith('http') && !clipboard.readText().toLowerCase().startsWith('chrome'))
+            general.ShowMessageBox("the options 'open' work when there is a URL to clipboard");
+          else
+            general.OpenNewWindow(clipboard.readText(), BrowserWindow.getFocusedWindow().partitionName);
         },
       },
-        {
-          label: "open",
-          icon: path.join(__dirname, "assets", "open_in_global.png"),
-          sublabel: "clipboard",
-          click: () => {
-            if (!clipboard.readText().toLowerCase().startsWith('http'))
-              general.ShowMessageBox("the options 'open x' work when there is a URL to clipboard");
-            else 
-              general.OpenNewWindow(clipboard.readText(), null); 
+      {
+        label: "open",
+        icon: path.join(__dirname, "assets", "open_in_global.png"),
+        sublabel: "clipboard",
+        click: () => {
+          if (!clipboard.readText().toLowerCase().startsWith('http') && !clipboard.readText().toLowerCase().startsWith('chrome'))
+            general.ShowMessageBox("the options 'open' work when there is a URL to clipboard");
+          else
+            general.OpenNewWindow(clipboard.readText(), null);
         },
       },
     ],
   },
 ];
+
 module.exports = { menulayout };

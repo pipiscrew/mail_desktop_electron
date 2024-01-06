@@ -1,67 +1,53 @@
 const { BrowserWindow, ipcMain } = require('electron');
-const fs = require('fs');
+// const fs = require('fs');
 const path = require("path");
 const general = require("./general");
+const store = require("./store");
 
 let mainWindow;
 function createConfigWindow() {
-    mainWindow = new BrowserWindow({
-      width: 1200,
-      height: 900,
-      webPreferences: {
-        nodeIntegration: true,
-        preload: path.join(__dirname, './preload.js')
-      }
-    });
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 900,
+    webPreferences: {
+      nodeIntegration: false,
+      preload: path.join(__dirname, './preload.js')
+    }
+  });
 
-    mainWindow.loadFile('./app/permissions_cfg.html');
-    mainWindow.setMenu(null);
+  mainWindow.loadFile('./app/permissions_cfg.html');
+  mainWindow.setMenu(null);
 }
 
 ipcMain.handle('save-data', (event, data) => {
-  let filePath = path.join(__dirname, 'settings.json');
-  fs.writeFileSync(filePath, JSON.stringify(data));
+  data.useragent = general.isStringEmpty(data.useragent) ? undefined : data.useragent;
 
-  general.global.shared.perms = data;
+  store.save('permissions', data);
+  store.save('useragent', data.useragent);
 
   mainWindow.close();
   mainWindow = null;
-  // return data;
 
-  // let filePath = path.join(__dirname, 'settings.json');
-  // fs.writeFileSync(filePath, JSON.stringify(data));
-
-  // savedData = data;
-  // return savedData;
 });
 
 ipcMain.handle('load-data', (event) => {
-  // console.log("general.global.shared.perms" + general.global.shared.perms);
-
-  return general.global.shared.perms; 
-  // let filePath = path.join(__dirname, 'settings.json');
-
-  // if (fs.existsSync(filePath)) {
-  //   let data = fs.readFileSync(filePath, 'utf8');
-  //   return JSON.parse(data);
-  // } else 
-  //   return savedData;
+  return store.getValueOrDefault('permissions', { "clipboard_read": false, "clipboard_sanitized_write": true, "display_capture": true, "fullscreen": false, "geolocation": true, "idle_detection": true, "media": true, "mediaKeySystem": false, "midi": true, "midiSysex": true, "notifications": true, "pointerLock": false, "keyboardLock": false, "openExternal": false, "window_management": true, "background_sync": true, "unknown": true, "useragent": undefined }); //general.global.shared.perms; 
 });
 
 ipcMain.handle('reset-data', (event) => {
-  let filePath = path.join(__dirname, 'settings.json');
-  if (fs.existsSync(filePath)) {
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.error(`Error deleting file: ${err}`);
-      } else {
-        console.log('File deleted successfully.');
-      }
-    });    
-  } 
+  store.save('permissions', undefined)
+  store.save('useragent', undefined)
 
   mainWindow.close();
   mainWindow = null;
+});
+
+ipcMain.handle('app-metrics', (event) => {
+  general.ShowMessageBox(JSON.stringify(app.getAppMetrics()));
+});
+
+ipcMain.handle('gpu-feature-status', (event) => {
+  general.ShowMessageBox(JSON.stringify(app.getGPUFeatureStatus()));
 });
 
 module.exports = { createConfigWindow };

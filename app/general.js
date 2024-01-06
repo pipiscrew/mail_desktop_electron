@@ -1,28 +1,18 @@
 const { BrowserWindow, dialog, Tray, Menu, session } = require("electron");
 const fs = require('fs');
 const path = require("path");
-
-global.shared = {
-    userAgent: null,
-    perms : { //here defined the default *disabled* permissions (are TRUE) 
-            }
-};
-
-function SetUserAgent(value) {
-    global.shared = { userAgent: value };
-}
+const store = require("./store");
 
 /////////////////////////////////////////
 ///////////////////// INSTANTIATE [start]
 var tray = null;
-var windowIndex = 0;  //attached to each /window opened/ at OpenNewWindow, later used on tray click - https://www.electronjs.org/docs/latest/api/tray - later found BrowserWindow.webContents.id
 
 function TrayIcon() {
     tray = new Tray(path.join(__dirname, "assets", "gmail_blue.ico"));
 
     const contextMenu = Menu.buildFromTemplate([
         { label: 'show', click: () => { BrowserWindow.getAllWindows()[BrowserWindow.getAllWindows().length - 1].show();} },
-        { label: 'set all read', click: () => {  tray.windowIndex = undefined; tray.setImage(path.join(__dirname, "assets", "gmail_blue.ico")); tray.setToolTip('PipisCrew.mail desktop electron');} },
+        { label: 'set all read', click: () => { tray.windowIndex = undefined; tray.setImage(path.join(__dirname, "assets", "gmail_blue.ico")); tray.setToolTip('PipisCrew.mail desktop electron');} },
         { label: 'settings', enabled:false },
         { label: 'exit', click: () => { process.exit();} }
     ])
@@ -40,8 +30,8 @@ function TrayIcon() {
 
         //match the previously saved tray.windowIndex by BrowserWindow -- webContents.on('page-title-updated'
         let browserWindowFound;
-        for (const w of BrowserWindow.getAllWindows()) {
-            if (w.windowIndex === tray.windowIndex) {
+        for (let w of BrowserWindow.getAllWindows()) {
+            if (w.id === tray.windowIndex) {
                 browserWindowFound = true;
                 w.show();
                 break;
@@ -60,64 +50,16 @@ function TrayIcon() {
 ////////////////////////////////////////////
 ///////////////////// PERMISSIONS SET [start]
 function LoadPermissions(){
-    let filePath = path.join(__dirname, 'settings.json');
-    let filePerms = { //app defaults
-        clipboard_read: false,
-        clipboard_sanitized_write: true,
-        display_capture: true,
-        fullscreen: false,
-        geolocation: true,
-        idle_detection: true,
-        media: true,
-        mediaKeySystem: false,
-        midi: true,
-        midiSysex: true,
-        notifications: true,
-        pointerLock: false,
-        keyboardLock: false,
-        openExternal: false,
-        window_management: true,
-        background_sync: true,
-        unknown: true
-    };
-
-    if (fs.existsSync(filePath)) {
-        // console.log("file found!");
-        let data = fs.readFileSync(filePath, 'utf8');
-        filePerms = JSON.parse(data);
-    } 
-    // console.log("--filePerms--");
-    // console.log(filePerms);
-    
-    global.shared.perms = {
-        clipboard_read: filePerms.clipboard_read,
-        clipboard_sanitized_write: filePerms.clipboard_sanitized_write,
-        display_capture: filePerms.display_capture,
-        fullscreen: filePerms.fullscreen,
-        geolocation: filePerms.geolocation,
-        idle_detection: filePerms.idle_detection,
-        media: filePerms.media,
-        mediaKeySystem: filePerms.mediaKeySystem,
-        midi: filePerms.midi,
-        midiSysex: filePerms.midiSysex,
-        notifications: filePerms.notifications,
-        pointerLock: filePerms.pointerLock,
-        keyboardLock: filePerms.keyboardLock,
-        openExternal: filePerms.openExternal,
-        window_management: filePerms.window_management,
-        background_sync:filePerms.background_sync,
-        unknown: filePerms.unknown
-    };
-    // console.log("--global.shared.perms--");
-    // console.log("filePerms.media - " + filePerms.media);
+    return store.getValueOrDefault('permissions' , { "clipboard_read":false, "clipboard_sanitized_write":true, "display_capture":true, "fullscreen":false, "geolocation":true, "idle_detection":true, "media":true, "mediaKeySystem":false, "midi":true, "midiSysex":true, "notifications":true, "pointerLock":false, "keyboardLock":false, "openExternal":false, "window_management":true, "background_sync":true, "unknown":true, "useragent":undefined } ); 
 }
 
 function CheckPermission(permission) { // greets to AI
     // Convert the permission string to lowercase for case-insensitive comparison 
     const lowercasePermission = permission.toLowerCase().replace("-","_").replace("-","_");
 
-    if (global.shared.perms.hasOwnProperty(lowercasePermission)) {
-        return global.shared.perms[lowercasePermission];
+    let perms = LoadPermissions();
+    if (perms.hasOwnProperty(lowercasePermission)) {
+        return perms[lowercasePermission];
     } else { //by default DECLINE any unknowm permission
         return true;
     }
@@ -125,24 +67,24 @@ function CheckPermission(permission) { // greets to AI
 
 function SetPermissionsPartition(partitionName){ //https://www.electronjs.org/docs/latest/api/session#sessionfrompathpath-options - https://blog.doyensec.com/2022/09/27/electron-api-default-permissions.html
     session.fromPartition(partitionName).setPermissionRequestHandler((webContents, permission, callback) => {
-        // console.log("setPermissionRequestHandler -- " + webContents.getURL() + " - " + permission + ' - ' + (!CheckPermission(permission)));
+        //   console.log("setPermissionRequestHandler -- " + webContents.getURL() + " - " + permission + ' - ' + (!CheckPermission(permission)));
         return callback(!CheckPermission(permission));
     })
   
     session.fromPartition(partitionName).setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    //   console.log("setPermissionCheckHandler -- " + requestingOrigin + " - " + permission + ' - ' + (!CheckPermission(permission)));  
+        // console.log("setPermissionCheckHandler -- " + requestingOrigin + " - " + permission + ' - ' + (!CheckPermission(permission)));  
       return !CheckPermission(permission); 
     })
 }
 
 function SetPermissionsDefaultPartition(){ //https://www.electronjs.org/docs/latest/api/session#sessiondefaultsession
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-        // console.log("setPermissionRequestHandler -- " + webContents.getURL() + " - " + permission + ' - ' + (!CheckPermission(permission)));
+        //   console.log("setPermissionRequestHandler -- " + webContents.getURL() + " - " + permission + ' - ' + (!CheckPermission(permission)));
         return callback(!CheckPermission(permission));
     })
   
     session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    //   console.log("setPermissionCheckHandler -- " + requestingOrigin + " - " + permission + ' - ' + (!CheckPermission(permission)));  
+        // console.log("setPermissionCheckHandler -- " + requestingOrigin + " - " + permission + ' - ' + (!CheckPermission(permission)));  
       return !CheckPermission(permission); 
     })
 }
@@ -152,18 +94,12 @@ function SetPermissionsDefaultPartition(){ //https://www.electronjs.org/docs/lat
 
 function OpenNewWindow(url, partitionName, icon_name) {
 
-    // let countBrowsers = BrowserWindow.getAllWindows().length;
-
-    //identification - used only when user wants to #show# the associate browser by the tray notification (using the option 'Show')
-    windowIndex++;
-
-    let wordwindow = new BrowserWindow({
+    const wordwindow = new BrowserWindow({
         width: 1181,
         height: 670,
-        show: (windowIndex != 1), //when app starts, is hidden to tray by default
-        partit: partitionName,
+        show: BrowserWindow.getAllWindows().length > 0, //when app starts, is hidden to tray by default
         icon: path.join(__dirname, "assets", "" + icon_name), //even null (aka open in new window options) inherit from mainBrowserWindow without error
-        webPreferences: {
+        webPreferences: { //https://www.electronjs.org/docs/latest/api/structures/web-preferences
             nodeIntegration: false,
             nodeIntegrationInWorker: false,
             nodeIntegrationInSubFrames: false,
@@ -174,8 +110,8 @@ function OpenNewWindow(url, partitionName, icon_name) {
         },
     });
 
+    //assign new property - used only when using 'open w/ cookies'
     wordwindow.partitionName = partitionName;
-    wordwindow.windowIndex = windowIndex;
 
     ///////// SET PERMISSIONS EVERY TIME [start]
     if (partitionName) {
@@ -188,18 +124,16 @@ function OpenNewWindow(url, partitionName, icon_name) {
     }
     ///////// SET PERMISSIONS EVERY TIME [end]
 
-    wordwindow.loadURL(url, { userAgent: global.shared.userAgent });  // access via general.global.shared.userAgent - UPDATE no used anymore ;)
-
+    wordwindow.loadURL(url, { userAgent: store.load('useragent') });
+    
     //subscribe to TRAY event - on title change - icon_name means only for the app /default/ websites (aka no the new child windows opened across)
     if (icon_name) {
-        const iconFilepath = path.join(__dirname, "assets", "" + icon_name);
+        let iconFilepath = path.join(__dirname, "assets", "" + icon_name);
         wordwindow.webContents.on('page-title-updated', (event, title) => {
-            // console.log('Page title updated:', title);
-
-            if (title.indexOf("(") > 0) {
+            if (title.indexOf("(") > -1) {
                 tray.setImage(iconFilepath);
                 tray.setToolTip(title);
-                tray.windowIndex = wordwindow.windowIndex;  //used on LeftClick - tray.on('click'
+                tray.windowIndex = wordwindow.id;  //used on LeftClick - tray.on('click'
             }
         });
     }
@@ -214,7 +148,7 @@ function SavePDF() {
         fs.writeFile(pdfPath, data, (error) => {
             if (error) throw error
 
-            ShowMessageBox(`PDF generated successfully to ${pdfPath}`);
+            ShowMessageBox(`PDF generated successfully near application to file ${pdfPath}`);
         })
     }).catch(error => {
         console.log(`Failed to write PDF to ${pdfPath}: `, error)
@@ -231,22 +165,40 @@ function ShowMessageBox(e) {
     });
 }
 
-module.exports = { global, SetUserAgent, OpenNewWindow, SavePDF, ShowMessageBox, TrayIcon, LoadPermissions };
+function isStringEmpty(str) {
+    return str == null || str.trim() === '';
+  }
 
-/* as found at
-https://iamveryhungry.medium.com/share-data-using-global-d141cfc21b7d
-https://ishwar-rimal.medium.com/generating-pdf-with-electron-js-31b59ac93249
+function CleanProfile(folderPath) {
+    if (!fs.existsSync(folderPath)) {
+        console.error(`Folder does not exist: ${folderPath}`);
+        return;
+    }
 
---
+    // Get a list of all items in the folder
+    let items = fs.readdirSync(folderPath);
 
-changes:
-* remove functionalities & packages (specially the **electron-store** which have reference to https://www.npmjs.com/package/conf - omg!)
-* user agent - can defined at useragent.txt (near the executable, user has to create it)
-* mouse context new options - 'save as pdf' & 'open in default browser'
-* top menu - add multiple sites playing isolated by each other (aka partitions)
-* top menu - user can open a 'custom url' by clipboard to the current partition
-* top menu - user can set page permissions
-* prevent multi instances (in case there is no application window and when running the application doing nothing, TERMINATE the process 'mail_desktop_electron'. This happens when previously app is crashed)
-* compiled under the traditional [electron-packager](https://github.com/electron/packager)
+    items.forEach(item => {
+        let itemPath = path.join(folderPath, item);
 
-*/
+        if (fs.statSync(itemPath).isDirectory()) {
+            if (item !== 'Network') {
+                CleanProfile(itemPath);
+            } else {
+                console.log(`Skipping deletion of 'Network' folder: ${itemPath}`);
+            }
+        } else {
+            //Delete file
+            fs.unlinkSync(itemPath);
+        }
+    });
+
+    try {
+        // Delete folder
+        fs.rmdirSync(folderPath);
+    } catch (err) {
+        // console.error('Error delete:', err);
+    }
+}
+
+module.exports = { global, OpenNewWindow, SavePDF, ShowMessageBox, TrayIcon, LoadPermissions, CleanProfile, isStringEmpty };
