@@ -103,6 +103,11 @@ as said
 * [electron-dl](https://www.npmjs.com/package/electron-dl)  
 
 &nbsp;
+# links
+* [electron.ASAR Integrity](https://www.electronjs.org/docs/latest/tutorial/asar-integrity)
+* [electron.Fuses](https://www.electronjs.org/docs/latest/tutorial/fuses)  
+
+&nbsp;
 ## This project is no longer maintained
 Copyright (c) 2024 [PipisCrew](http://pipiscrew.com)  
 
