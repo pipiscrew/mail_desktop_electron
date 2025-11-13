@@ -108,6 +108,10 @@ as said
 * [electron.Fuses](https://www.electronjs.org/docs/latest/tutorial/fuses)  
 
 &nbsp;
+## alternative
+* [ElectronIM](https://github.com/manusa/electronim)
+
+&nbsp;
 ## This project is no longer maintained
 Copyright (c) 2024 [PipisCrew](http://pipiscrew.com)  
 
