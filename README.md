@@ -110,6 +110,8 @@ as said
 &nbsp;
 ## alternative
 * [ElectronIM](https://github.com/manusa/electronim)
+* [Franz](https://github.com/meetfranz/franz)
+* [Rambox](https://rambox.app/)
 
 &nbsp;
 ## This project is no longer maintained
